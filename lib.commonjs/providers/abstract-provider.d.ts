@@ -280,7 +280,7 @@ export declare class AbstractProvider implements Provider {
     /**
      *  Resolves to the data for executing the CCIP-read operations.
      */
-    ccipReadFetch(tx: PerformActionTransaction, calldata: string, urls: Array<string>): Promise<null | string>;
+    ccipReadFetch(tx: PerformActionTransaction | TransactionRequest, calldata: string, urls: Array<string>): Promise<null | string>;
     /**
      *  Provides the opportunity for a sub-class to wrap a block before
      *  returning it, to add additional properties or an alternate

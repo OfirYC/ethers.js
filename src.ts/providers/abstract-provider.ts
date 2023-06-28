@@ -66,7 +66,11 @@ import {
 } from "./subscriber-polling.js";
 
 import type { Addressable, AddressLike } from "../address/index.js";
-import type { BigNumberish, BytesLike } from "../utils/index.js";
+import type {
+  BigNumberish,
+  BytesLike,
+  CallExceptionAction,
+} from "../utils/index.js";
 import type { Listener } from "../utils/index.js";
 
 import type { Networkish } from "./network.js";
@@ -677,10 +681,130 @@ export class AbstractProvider implements Provider {
   }
 
   /**
+   * Checks whether a revert is a valid offchain lookup.
+   */
+  #isOffchainLookup<T extends TransactionRequest | PerformActionTransaction>(
+    error: any,
+    transaction: T,
+    attempt: number,
+    type: "read" | "write" = "read",
+    blockTag?: BlockTag
+  ): boolean {
+    if (
+      !this.disableCcipRead &&
+      (type == "read" || transaction.enableCcipRead) &&
+      isCallException(error) &&
+      error.data &&
+      attempt >= 0 &&
+      blockTag === "latest" &&
+      transaction.to != null &&
+      dataSlice(error.data, 0, 4) === "0x556f1830"
+    )
+      return true;
+
+    return false;
+  }
+
+  /**
+   * Handle a valid CCIP OffchainLookup
+   */
+  async #handleValidCCIP<
+    T extends TransactionRequest | PerformActionTransaction,
+    R
+  >(
+    error: any,
+    transaction: T,
+    attempt: number,
+    action: CallExceptionAction,
+    txnSender: (transaction: T, attempt: number) => Promise<R>
+  ) {
+    // Sufficient check
+    if (!transaction.to) throw error;
+
+    const data = error.data;
+
+    const txSender = await resolveAddress(transaction.to, this);
+
+    // Parse the CCIP Read Arguments
+    let ccipArgs: CcipArgs;
+    try {
+      ccipArgs = parseOffchainLookup(dataSlice(error.data, 4));
+    } catch (error: any) {
+      assert(false, error.message, "OFFCHAIN_FAULT", {
+        reason: "BAD_DATA",
+        transaction,
+        info: { data },
+      });
+    }
+
+    // Check the sender of the OffchainLookup matches the transaction
+    assert(
+      ccipArgs.sender.toLowerCase() === txSender.toLowerCase(),
+      "CCIP Read sender mismatch",
+      "CALL_EXCEPTION",
+      {
+        action,
+        data,
+        reason: "OffchainLookup",
+        transaction: <any>transaction, // @TODO: populate data?
+        invocation: null,
+        revert: {
+          signature: "OffchainLookup(address,string[],bytes,bytes4,bytes)",
+          name: "OffchainLookup",
+          args: ccipArgs.errorArgs,
+        },
+      }
+    );
+
+    const ccipResult = await this.ccipReadFetch(
+      transaction,
+      ccipArgs.calldata,
+      ccipArgs.urls
+    );
+    assert(
+      ccipResult != null,
+      "CCIP Read failed to fetch data",
+      "OFFCHAIN_FAULT",
+      {
+        reason: "FETCH_FAILED",
+        transaction,
+        info: { data: error.data, errorArgs: ccipArgs.errorArgs },
+      }
+    );
+
+    const tx = {
+      ...transaction,
+      to: txSender,
+      data: concat([
+        ccipArgs.selector,
+        encodeBytes([ccipResult, ccipArgs.extraData]),
+      ]),
+    };
+
+    this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
+    try {
+      const result = await txnSender(tx, attempt + 1);
+      this.emit("debug", {
+        action: "receiveCcipReadCallResult",
+        transaction: Object.assign({}, tx),
+        result,
+      });
+      return result;
+    } catch (error) {
+      this.emit("debug", {
+        action: "receiveCcipReadCallError",
+        transaction: Object.assign({}, tx),
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
    *  Resolves to the data for executing the CCIP-read operations.
    */
   async ccipReadFetch(
-    tx: PerformActionTransaction,
+    tx: PerformActionTransaction | TransactionRequest,
     calldata: string,
     urls: Array<string>
   ): Promise<null | string> {
@@ -688,7 +812,10 @@ export class AbstractProvider implements Provider {
       return null;
     }
 
-    const sender = tx.to.toLowerCase();
+    const sender =
+      typeof tx.to == "string"
+        ? tx.to.toLowerCase()
+        : (await resolveAddress(tx.to, this)).toLowerCase();
     const data = calldata.toLowerCase();
 
     const errorMessages: Array<string> = [];
@@ -1195,93 +1322,18 @@ export class AbstractProvider implements Provider {
     } catch (error: any) {
       // CCIP Read OffchainLookup
       if (
-        !this.disableCcipRead &&
-        isCallException(error) &&
-        error.data &&
-        attempt >= 0 &&
-        blockTag === "latest" &&
-        transaction.to != null &&
-        dataSlice(error.data, 0, 4) === "0x556f1830"
-      ) {
-        const data = error.data;
+        !this.#isOffchainLookup(error, transaction, attempt, "read", blockTag)
+      )
+        throw error;
 
-        const txSender = await resolveAddress(transaction.to, this);
-
-        // Parse the CCIP Read Arguments
-        let ccipArgs: CcipArgs;
-        try {
-          ccipArgs = parseOffchainLookup(dataSlice(error.data, 4));
-        } catch (error: any) {
-          assert(false, error.message, "OFFCHAIN_FAULT", {
-            reason: "BAD_DATA",
-            transaction,
-            info: { data },
-          });
-        }
-
-        // Check the sender of the OffchainLookup matches the transaction
-        assert(
-          ccipArgs.sender.toLowerCase() === txSender.toLowerCase(),
-          "CCIP Read sender mismatch",
-          "CALL_EXCEPTION",
-          {
-            action: "call",
-            data,
-            reason: "OffchainLookup",
-            transaction: <any>transaction, // @TODO: populate data?
-            invocation: null,
-            revert: {
-              signature: "OffchainLookup(address,string[],bytes,bytes4,bytes)",
-              name: "OffchainLookup",
-              args: ccipArgs.errorArgs,
-            },
-          }
-        );
-
-        const ccipResult = await this.ccipReadFetch(
-          transaction,
-          ccipArgs.calldata,
-          ccipArgs.urls
-        );
-        assert(
-          ccipResult != null,
-          "CCIP Read failed to fetch data",
-          "OFFCHAIN_FAULT",
-          {
-            reason: "FETCH_FAILED",
-            transaction,
-            info: { data: error.data, errorArgs: ccipArgs.errorArgs },
-          }
-        );
-
-        const tx = {
-          to: txSender,
-          data: concat([
-            ccipArgs.selector,
-            encodeBytes([ccipResult, ccipArgs.extraData]),
-          ]),
-        };
-
-        this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
-        try {
-          const result = await this.#call(tx, blockTag, attempt + 1);
-          this.emit("debug", {
-            action: "receiveCcipReadCallResult",
-            transaction: Object.assign({}, tx),
-            result,
-          });
-          return result;
-        } catch (error) {
-          this.emit("debug", {
-            action: "receiveCcipReadCallError",
-            transaction: Object.assign({}, tx),
-            error,
-          });
-          throw error;
-        }
-      }
-
-      throw error;
+      return await this.#handleValidCCIP(
+        error,
+        transaction,
+        attempt,
+        "call",
+        async (newTxn: PerformActionTransaction, newAttempt: number) =>
+          await this.#call(newTxn, blockTag, newAttempt)
+      );
     }
   }
 
