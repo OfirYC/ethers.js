@@ -773,7 +773,7 @@ export class AbstractProvider {
                 transaction: tx,
             }), "%response");
             // Gas estimation went through w/ current TX data === PASS
-            return tx.data;
+            return hexlify(tx.data);
         }
         catch (error) {
             // CCIP Read OffchainLookup
