@@ -683,7 +683,9 @@ export class AbstractProvider implements Provider {
   /**
    * Checks whether a revert is a valid offchain lookup.
    */
-  #isOffchainLookup<T extends TransactionRequest | PerformActionTransaction>(
+  #isValidOffchainLookup<
+    T extends TransactionRequest | PerformActionTransaction
+  >(
     error: any,
     transaction: T,
     attempt: number,
@@ -1278,7 +1280,22 @@ export class AbstractProvider implements Provider {
     return new FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
   }
 
-  async estimateGas(_tx: TransactionRequest): Promise<bigint> {
+  async estimateGas(
+    _tx: TransactionRequest,
+    attempt: number = 0
+  ): Promise<bigint> {
+    assert(
+      attempt < MAX_CCIP_REDIRECTS,
+      "CCIP read exceeded maximum redirections",
+      "OFFCHAIN_FAULT",
+      {
+        reason: "TOO_MANY_REDIRECTS",
+        transaction: Object.assign({}, _tx, {
+          blockTag: _tx.blockTag,
+          enableCcipRead: true,
+        }),
+      }
+    );
     let tx = this._getTransactionRequest(_tx);
     try {
       if (isPromise(tx)) {
@@ -1291,9 +1308,69 @@ export class AbstractProvider implements Provider {
         }),
         "%response"
       );
-    } catch (e: any) {
-      console.error("Found Estimate Gas Error!");
-      throw e;
+    } catch (error: any) {
+      // CCIP Read OffchainLookup
+      if (
+        !this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)
+      )
+        throw error;
+
+      return await this.#handleValidCCIP(
+        error,
+        _tx,
+        attempt,
+        "estimateGas",
+        async (newTxn: TransactionRequest, newAttempt: number) =>
+          await this.estimateGas(newTxn, newAttempt)
+      );
+    }
+  }
+
+  async resolveOffchainData(
+    _tx: TransactionRequest,
+    attempt: number = 0
+  ): Promise<string> {
+    assert(
+      attempt < MAX_CCIP_REDIRECTS,
+      "CCIP read exceeded maximum redirections",
+      "OFFCHAIN_FAULT",
+      {
+        reason: "TOO_MANY_REDIRECTS",
+        transaction: Object.assign({}, _tx, {
+          blockTag: _tx.blockTag,
+          enableCcipRead: true,
+        }),
+      }
+    );
+    let tx = this._getTransactionRequest(_tx);
+    try {
+      if (isPromise(tx)) tx = await tx;
+
+      getBigInt(
+        await this.#perform({
+          method: "estimateGas",
+          transaction: tx,
+        }),
+        "%response"
+      );
+
+      // Gas estimation went through w/ current TX data === PASS
+      return tx.data as string;
+    } catch (error: any) {
+      // CCIP Read OffchainLookup
+      if (
+        !this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)
+      )
+        throw error;
+
+      return await this.#handleValidCCIP(
+        error,
+        _tx,
+        attempt,
+        "estimateGas",
+        async (newTxn: TransactionRequest, newAttempt: number) =>
+          await this.resolveOffchainData(newTxn, newAttempt)
+      );
     }
   }
 
@@ -1322,7 +1399,13 @@ export class AbstractProvider implements Provider {
     } catch (error: any) {
       // CCIP Read OffchainLookup
       if (
-        !this.#isOffchainLookup(error, transaction, attempt, "read", blockTag)
+        !this.#isValidOffchainLookup(
+          error,
+          transaction,
+          attempt,
+          "read",
+          blockTag
+        )
       )
         throw error;
 
