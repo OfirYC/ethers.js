@@ -1368,7 +1368,7 @@ export class AbstractProvider implements Provider {
       );
 
       // Gas estimation went through w/ current TX data === PASS
-      return tx.data as string;
+      return hexlify(tx.data as string);
     } catch (error: any) {
       // CCIP Read OffchainLookup
       if (
