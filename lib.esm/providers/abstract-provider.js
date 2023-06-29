@@ -754,6 +754,7 @@ export class AbstractProvider {
         }
     }
     async resolveOffchainData(_tx, attempt = 0) {
+        console.log("Resolving Offchain Data...");
         assert(attempt < MAX_CCIP_REDIRECTS, "CCIP read exceeded maximum redirections", "OFFCHAIN_FAULT", {
             reason: "TOO_MANY_REDIRECTS",
             transaction: Object.assign({}, _tx, {
@@ -762,6 +763,7 @@ export class AbstractProvider {
             }),
         });
         let tx = this._getTransactionRequest(_tx);
+        console.log("TX To Resolve:", tx);
         try {
             if (isPromise(tx))
                 tx = await tx;
@@ -774,8 +776,10 @@ export class AbstractProvider {
         }
         catch (error) {
             // CCIP Read OffchainLookup
-            if (!this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag))
+            if (!this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)) {
+                console.log("IS not valid offchain - Throwing...");
                 throw error;
+            }
             return await this.#handleValidCCIP(error, _tx, attempt, "estimateGas", async (newTxn, newAttempt) => await this.resolveOffchainData(newTxn, newAttempt));
         }
     }
