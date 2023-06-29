@@ -1,5 +1,7 @@
 import type {
-    Provider, TransactionRequest, TransactionResponse
+  Provider,
+  TransactionRequest,
+  TransactionResponse,
 } from "./provider.js";
 
 /**
@@ -12,31 +14,36 @@ import type {
  *  read-only access and [Signers](Signer) which enable write-access.
  */
 export interface ContractRunner {
-    /**
-     *  The provider used for necessary state querying operations.
-     *
-     *  This can also point to the **ContractRunner** itself, in the
-     *  case of an [[AbstractProvider]].
-     */
-    provider: null | Provider;
+  /**
+   *  The provider used for necessary state querying operations.
+   *
+   *  This can also point to the **ContractRunner** itself, in the
+   *  case of an [[AbstractProvider]].
+   */
+  provider: null | Provider;
 
-    /**
-     *  Required to estimate gas.
-     */
-    estimateGas?: (tx: TransactionRequest) => Promise<bigint>;
+  /**
+   *  Required to estimate gas.
+   */
+  estimateGas?: (tx: TransactionRequest) => Promise<bigint>;
 
-    /**
-     * Required for pure, view or static calls to contracts.
-     */
-    call?: (tx: TransactionRequest) => Promise<string>;
+  /**
+   * Required to resolve CCIP offchain data in a transaction
+   */
+  resolveOffchainData?: (tx: TransactionRequest) => Promise<string>;
 
-    /**
-     *  Required to support ENS names
-     */
-    resolveName?: (name: string) => Promise<null | string>;
+  /**
+   * Required for pure, view or static calls to contracts.
+   */
+  call?: (tx: TransactionRequest) => Promise<string>;
 
-    /**
-     *  Required for state mutating calls
-     */
-    sendTransaction?: (tx: TransactionRequest) => Promise<TransactionResponse>;
+  /**
+   *  Required to support ENS names
+   */
+  resolveName?: (name: string) => Promise<null | string>;
+
+  /**
+   *  Required for state mutating calls
+   */
+  sendTransaction?: (tx: TransactionRequest) => Promise<TransactionResponse>;
 }

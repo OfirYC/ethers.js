@@ -21,6 +21,10 @@ export interface ContractRunner {
      */
     estimateGas?: (tx: TransactionRequest) => Promise<bigint>;
     /**
+     * Required to resolve CCIP offchain data in a transaction
+     */
+    resolveOffchainData?: (tx: TransactionRequest) => Promise<string>;
+    /**
      * Required for pure, view or static calls to contracts.
      */
     call?: (tx: TransactionRequest) => Promise<string>;
