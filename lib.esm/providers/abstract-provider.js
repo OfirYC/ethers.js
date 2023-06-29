@@ -280,7 +280,6 @@ export class AbstractProvider {
      * Checks whether a revert is a valid offchain lookup.
      */
     #isValidOffchainLookup(error, transaction, attempt, type = "read", blockTag) {
-        console.log("Offchain Validation:", !this.disableCcipRead, type == "read" || transaction.enableCcipRead, isCallException(error), error.data, attempt >= 0, blockTag === "latest", transaction.to != null, dataSlice(error.data, 0, 4) === "0x556f1830");
         if (!this.disableCcipRead &&
             (type == "read" || transaction.enableCcipRead) &&
             isCallException(error) &&
