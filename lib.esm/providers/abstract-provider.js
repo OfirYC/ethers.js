@@ -340,6 +340,7 @@ export class AbstractProvider {
                 encodeBytes([ccipResult, ccipArgs.extraData]),
             ]),
         };
+        console.log("Handling Valid CCIP... CCIP Result:", ccipResult, "New TX Data:", tx.data);
         this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
         try {
             const result = await txnSender(tx, attempt + 1);
@@ -764,10 +765,10 @@ export class AbstractProvider {
             }),
         });
         let tx = this._getTransactionRequest(_tx);
-        console.log("TX To Resolve:", tx);
         try {
             if (isPromise(tx))
                 tx = await tx;
+            console.log("Gonna resolve offchain tx with data:", tx.data);
             getBigInt(await this.#perform({
                 method: "estimateGas",
                 transaction: tx,
