@@ -692,6 +692,17 @@ export class AbstractProvider implements Provider {
     type: "read" | "write" = "read",
     blockTag?: BlockTag
   ): boolean {
+    console.log(
+      "Offchain Validation:",
+      !this.disableCcipRead,
+      type == "read" || transaction.enableCcipRead,
+      isCallException(error),
+      error.data,
+      attempt >= 0,
+      blockTag === "latest",
+      transaction.to != null,
+      dataSlice(error.data, 0, 4) === "0x556f1830"
+    );
     if (
       !this.disableCcipRead &&
       (type == "read" || transaction.enableCcipRead) &&
