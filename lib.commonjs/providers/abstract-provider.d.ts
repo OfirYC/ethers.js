@@ -345,7 +345,8 @@ export declare class AbstractProvider implements Provider {
     _getTransactionRequest(_request: TransactionRequest): PerformActionTransaction | Promise<PerformActionTransaction>;
     getNetwork(): Promise<Network>;
     getFeeData(): Promise<FeeData>;
-    estimateGas(_tx: TransactionRequest): Promise<bigint>;
+    estimateGas(_tx: TransactionRequest, attempt?: number): Promise<bigint>;
+    resolveOffchainData(_tx: TransactionRequest, attempt?: number): Promise<string>;
     call(_tx: TransactionRequest): Promise<string>;
     getBalance(address: AddressLike, blockTag?: BlockTag): Promise<bigint>;
     getTransactionCount(address: AddressLike, blockTag?: BlockTag): Promise<number>;

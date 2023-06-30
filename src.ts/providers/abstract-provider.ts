@@ -783,13 +783,6 @@ export class AbstractProvider implements Provider {
       ]),
     };
 
-    console.log(
-      "Handling Valid CCIP... CCIP Result:",
-      ccipResult,
-      "New TX Data:",
-      tx.data
-    );
-
     this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
     try {
       const result = await txnSender(tx, attempt + 1);
@@ -1337,7 +1330,6 @@ export class AbstractProvider implements Provider {
     _tx: TransactionRequest,
     attempt: number = 0
   ): Promise<string> {
-    console.log("Resolving Offchain Data...");
     assert(
       attempt < MAX_CCIP_REDIRECTS,
       "CCIP read exceeded maximum redirections",
@@ -1354,8 +1346,6 @@ export class AbstractProvider implements Provider {
     try {
       if (isPromise(tx)) tx = await tx;
 
-      console.log("Gonna resolve offchain tx with data:", tx.data);
-
       getBigInt(
         await this.#perform({
           method: "estimateGas",
@@ -1370,10 +1360,8 @@ export class AbstractProvider implements Provider {
       // CCIP Read OffchainLookup
       if (
         !this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)
-      ) {
-        console.log("IS not valid offchain - Throwing...");
+      )
         throw error;
-      }
 
       return await this.#handleValidCCIP(
         error,

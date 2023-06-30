@@ -10,16 +10,19 @@ const index_js_3 = require("../utils/index.js");
 const wrappers_js_1 = require("./wrappers.js");
 const BN_0 = BigInt(0);
 function canCall(value) {
-    return (value && typeof (value.call) === "function");
+    return value && typeof value.call === "function";
 }
 function canEstimate(value) {
-    return (value && typeof (value.estimateGas) === "function");
+    return value && typeof value.estimateGas === "function";
+}
+function canResolveOffchaindata(value) {
+    return value && typeof value.resolveOffchainData === "function";
 }
 function canResolve(value) {
-    return (value && typeof (value.resolveName) === "function");
+    return value && typeof value.resolveName === "function";
 }
 function canSend(value) {
-    return (value && typeof (value.sendTransaction) === "function");
+    return value && typeof value.sendTransaction === "function";
 }
 class PreparedTopicFilter {
     #filter;
@@ -62,10 +65,10 @@ function getRunner(value, feature) {
     if (value == null) {
         return null;
     }
-    if (typeof (value[feature]) === "function") {
+    if (typeof value[feature] === "function") {
         return value;
     }
-    if (value.provider && typeof (value.provider[feature]) === "function") {
+    if (value.provider && typeof value.provider[feature] === "function") {
         return value.provider;
     }
     return null;
@@ -115,9 +118,13 @@ function buildWrappedFallback(contract) {
         const tx = (await copyOverrides(overrides, ["data"]));
         tx.to = await contract.getAddress();
         const iface = contract.interface;
-        const noValue = ((0, index_js_3.getBigInt)((tx.value || BN_0), "overrides.value") === BN_0);
-        const noData = ((tx.data || "0x") === "0x");
-        if (iface.fallback && !iface.fallback.payable && iface.receive && !noData && !noValue) {
+        const noValue = (0, index_js_3.getBigInt)(tx.value || BN_0, "overrides.value") === BN_0;
+        const noData = (tx.data || "0x") === "0x";
+        if (iface.fallback &&
+            !iface.fallback.payable &&
+            iface.receive &&
+            !noData &&
+            !noValue) {
             (0, index_js_3.assertArgument)(false, "cannot send data to receive or send value to non-payable fallback", "overrides", overrides);
         }
         (0, index_js_3.assertArgument)(iface.fallback || noData, "cannot send data to receive-only contract", "overrides.data", tx.data);
@@ -156,14 +163,21 @@ function buildWrappedFallback(contract) {
         (0, index_js_3.assert)(canEstimate(runner), "contract runner does not support gas estimation", "UNSUPPORTED_OPERATION", { operation: "estimateGas" });
         return await runner.estimateGas(await populateTransaction(overrides));
     };
+    const resolveOffchainData = async function (overrides) {
+        const runner = getRunner(contract.runner, "resolveOffchainData");
+        (0, index_js_3.assert)(canResolveOffchaindata(runner), "contract runner does not support resolving offchain data", "UNSUPPORTED_OPERATION", { operation: "resolveOffchainData" });
+        return await runner.resolveOffchainData(await populateTransaction(overrides));
+    };
     const method = async (overrides) => {
         return await send(overrides);
     };
     (0, index_js_3.defineProperties)(method, {
         _contract: contract,
         estimateGas,
+        resolveOffchainData,
         populateTransaction,
-        send, staticCall
+        send,
+        staticCall,
     });
     return method;
 }
@@ -171,7 +185,7 @@ function buildWrappedMethod(contract, key) {
     const getFragment = function (...args) {
         const fragment = contract.interface.getFunction(key, args);
         (0, index_js_3.assert)(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-            operation: "fragment"
+            operation: "fragment",
         });
         return fragment;
     };
@@ -188,7 +202,7 @@ function buildWrappedMethod(contract, key) {
         const resolvedArgs = await resolveArgs(contract.runner, fragment.inputs, args);
         return Object.assign({}, overrides, await (0, index_js_3.resolveProperties)({
             to: contract.getAddress(),
-            data: contract.interface.encodeFunctionData(fragment, resolvedArgs)
+            data: contract.interface.encodeFunctionData(fragment, resolvedArgs),
         }));
     };
     const staticCall = async function (...args) {
@@ -211,6 +225,11 @@ function buildWrappedMethod(contract, key) {
         const runner = getRunner(contract.runner, "estimateGas");
         (0, index_js_3.assert)(canEstimate(runner), "contract runner does not support gas estimation", "UNSUPPORTED_OPERATION", { operation: "estimateGas" });
         return await runner.estimateGas(await populateTransaction(...args));
+    };
+    const resolveOffchainData = async function (...args) {
+        const runner = getRunner(contract.runner, "resolveOffchainData");
+        (0, index_js_3.assert)(canResolveOffchaindata(runner), "contract runner does not support resolving offchain data", "UNSUPPORTED_OPERATION", { operation: "resolveOffchainData" });
+        return await runner.resolveOffchainData(await populateTransaction(...args));
     };
     const staticCallResult = async function (...args) {
         const runner = getRunner(contract.runner, "call");
@@ -238,11 +257,15 @@ function buildWrappedMethod(contract, key) {
     };
     (0, index_js_3.defineProperties)(method, {
         name: contract.interface.getFunctionName(key),
-        _contract: contract, _key: key,
+        _contract: contract,
+        _key: key,
         getFragment,
         estimateGas,
+        resolveOffchainData,
         populateTransaction,
-        send, staticCall, staticCallResult,
+        send,
+        staticCall,
+        staticCallResult,
     });
     // Only works on non-ambiguous keys (refined fragment is always non-ambiguous)
     Object.defineProperty(method, "fragment", {
@@ -251,10 +274,10 @@ function buildWrappedMethod(contract, key) {
         get: () => {
             const fragment = contract.interface.getFunction(key);
             (0, index_js_3.assert)(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                operation: "fragment"
+                operation: "fragment",
             });
             return fragment;
-        }
+        },
     });
     return method;
 }
@@ -262,7 +285,7 @@ function buildWrappedEvent(contract, key) {
     const getFragment = function (...args) {
         const fragment = contract.interface.getEvent(key, args);
         (0, index_js_3.assert)(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-            operation: "fragment"
+            operation: "fragment",
         });
         return fragment;
     };
@@ -271,8 +294,9 @@ function buildWrappedEvent(contract, key) {
     };
     (0, index_js_3.defineProperties)(method, {
         name: contract.interface.getEventName(key),
-        _contract: contract, _key: key,
-        getFragment
+        _contract: contract,
+        _key: key,
+        getFragment,
     });
     // Only works on non-ambiguous keys (refined fragment is always non-ambiguous)
     Object.defineProperty(method, "fragment", {
@@ -281,10 +305,10 @@ function buildWrappedEvent(contract, key) {
         get: () => {
             const fragment = contract.interface.getEvent(key);
             (0, index_js_3.assert)(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                operation: "fragment"
+                operation: "fragment",
             });
             return fragment;
-        }
+        },
     });
     return method;
 }
@@ -301,8 +325,11 @@ function getInternal(contract) {
     return internalValues.get(contract[internal]);
 }
 function isDeferred(value) {
-    return (value && typeof (value) === "object" && ("getTopicFilter" in value) &&
-        (typeof (value.getTopicFilter) === "function") && value.fragment);
+    return (value &&
+        typeof value === "object" &&
+        "getTopicFilter" in value &&
+        typeof value.getTopicFilter === "function" &&
+        value.fragment);
 }
 async function getSubInfo(contract, event) {
     let topics;
@@ -332,7 +359,7 @@ async function getSubInfo(contract, event) {
     else if (event === "*") {
         topics = [null];
     }
-    else if (typeof (event) === "string") {
+    else if (typeof event === "string") {
         if ((0, index_js_3.isHexString)(event, 32)) {
             // Topic Hash
             topics = [event];
@@ -371,7 +398,8 @@ async function getSubInfo(contract, event) {
         }
         return t.toLowerCase();
     });
-    const tag = topics.map((t) => {
+    const tag = topics
+        .map((t) => {
         if (t == null) {
             return "null";
         }
@@ -379,7 +407,8 @@ async function getSubInfo(contract, event) {
             return t.join("|");
         }
         return t;
-    }).join("&");
+    })
+        .join("&");
     return { fragment, tag, topics };
 }
 async function hasSub(contract, event) {
@@ -394,7 +423,7 @@ async function getSub(contract, operation, event) {
     const { addr, subs } = getInternal(contract);
     let sub = subs.get(tag);
     if (!sub) {
-        const address = (addr ? addr : contract);
+        const address = addr ? addr : contract;
         const filter = { address, topics };
         const listener = (log) => {
             let foundFragment = fragment;
@@ -407,7 +436,9 @@ async function getSub(contract, operation, event) {
             // If fragment is null, we do not deconstruct the args to emit
             if (foundFragment) {
                 const _foundFragment = foundFragment;
-                const args = fragment ? contract.interface.decodeEventLog(fragment, log.data, log.topics) : [];
+                const args = fragment
+                    ? contract.interface.decodeEventLog(fragment, log.data, log.topics)
+                    : [];
                 emit(contract, event, args, (listener) => {
                     return new wrappers_js_1.ContractEventPayload(contract, listener, event, _foundFragment, log);
                 });
@@ -461,7 +492,7 @@ async function _emit(contract, event, args, payloadFunc) {
         catch (error) { }
         return !once;
     });
-    return (count > 0);
+    return count > 0;
 }
 async function emit(contract, event, args, payloadFunc) {
     try {
@@ -512,7 +543,7 @@ class BaseContract {
      *  of.
      */
     constructor(target, abi, runner, _deployTx) {
-        (0, index_js_3.assertArgument)(typeof (target) === "string" || (0, index_js_2.isAddressable)(target), "invalid value for Contract target", "target", target);
+        (0, index_js_3.assertArgument)(typeof target === "string" || (0, index_js_2.isAddressable)(target), "invalid value for Contract target", "target", target);
         if (runner == null) {
             runner = null;
         }
@@ -530,7 +561,7 @@ class BaseContract {
         }
         let subs = new Map();
         // Resolve the target as the address
-        if (typeof (target) === "string") {
+        if (typeof target === "string") {
             if ((0, index_js_3.isHexString)(target)) {
                 addr = target;
                 addrPromise = Promise.resolve(target);
@@ -539,7 +570,7 @@ class BaseContract {
                 const resolver = getRunner(runner, "resolveName");
                 if (!canResolve(resolver)) {
                     throw (0, index_js_3.makeError)("contract runner does not support name resolution", "UNSUPPORTED_OPERATION", {
-                        operation: "resolveName"
+                        operation: "resolveName",
                     });
                 }
                 addrPromise = resolver.resolveName(target).then((addr) => {
@@ -581,12 +612,12 @@ class BaseContract {
                 if (passProperties.indexOf(prop) >= 0) {
                     return Reflect.has(target, prop);
                 }
-                return Reflect.has(target, prop) || this.interface.hasEvent(String(prop));
-            }
+                return (Reflect.has(target, prop) || this.interface.hasEvent(String(prop)));
+            },
         });
         (0, index_js_3.defineProperties)(this, { filters });
         (0, index_js_3.defineProperties)(this, {
-            fallback: ((iface.receive || iface.fallback) ? (buildWrappedFallback(this)) : null)
+            fallback: iface.receive || iface.fallback ? buildWrappedFallback(this) : null,
         });
         // Return a Proxy that will respond to functions
         return new Proxy(this, {
@@ -606,7 +637,7 @@ class BaseContract {
                     return Reflect.has(target, prop);
                 }
                 return target.interface.hasFunction(String(prop));
-            }
+            },
         });
     }
     /**
@@ -626,7 +657,9 @@ class BaseContract {
     /**
      *  Return the resolved address of this Contract.
      */
-    async getAddress() { return await getInternal(this).addrPromise; }
+    async getAddress() {
+        return await getInternal(this).addrPromise;
+    }
     /**
      *  Return the dedployed bytecode or null if no bytecode is found.
      */
@@ -689,7 +722,7 @@ class BaseContract {
      *  when using a Contract programatically.
      */
     getFunction(key) {
-        if (typeof (key) !== "string") {
+        if (typeof key !== "string") {
             key = key.format();
         }
         const func = buildWrappedMethod(this, key);
@@ -701,7 +734,7 @@ class BaseContract {
      *  when using a Contract programatically.
      */
     getEvent(key) {
-        if (typeof (key) !== "string") {
+        if (typeof key !== "string") {
             key = key.format();
         }
         return buildWrappedEvent(this, key);
@@ -726,7 +759,7 @@ class BaseContract {
             toBlock = "latest";
         }
         const { addr, addrPromise } = getInternal(this);
-        const address = (addr ? addr : (await addrPromise));
+        const address = addr ? addr : await addrPromise;
         const { fragment, topics } = await getSubInfo(this, event);
         const filter = { address, topics, fromBlock, toBlock };
         const provider = getProvider(this.runner);
@@ -822,7 +855,9 @@ class BaseContract {
             return this;
         }
         if (listener) {
-            const index = sub.listeners.map(({ listener }) => listener).indexOf(listener);
+            const index = sub.listeners
+                .map(({ listener }) => listener)
+                .indexOf(listener);
             if (index >= 0) {
                 sub.listeners.splice(index, 1);
             }
@@ -878,7 +913,6 @@ class BaseContract {
         }
         return CustomContract;
     }
-    ;
     /**
      *  Create a new BaseContract with a specified Interface.
      */

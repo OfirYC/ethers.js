@@ -119,6 +119,10 @@ export interface BaseContractMethod<A extends Array<any> = Array<any>, R = any, 
      */
     estimateGas(...args: ContractMethodArgs<A>): Promise<bigint>;
     /**
+     * Resolve offchain data using CCIP standard
+     */
+    resolveOffchainData(...args: ContractMethodArgs<A>): Promise<string>;
+    /**
      *  Call the contract method with %%args%% and return the Result
      *  without any dereferencing.
      */

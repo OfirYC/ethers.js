@@ -13967,16 +13967,19 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
 
     const BN_0$1 = BigInt(0);
     function canCall(value) {
-        return (value && typeof (value.call) === "function");
+        return value && typeof value.call === "function";
     }
     function canEstimate(value) {
-        return (value && typeof (value.estimateGas) === "function");
+        return value && typeof value.estimateGas === "function";
+    }
+    function canResolveOffchaindata(value) {
+        return value && typeof value.resolveOffchainData === "function";
     }
     function canResolve(value) {
-        return (value && typeof (value.resolveName) === "function");
+        return value && typeof value.resolveName === "function";
     }
     function canSend(value) {
-        return (value && typeof (value.sendTransaction) === "function");
+        return value && typeof value.sendTransaction === "function";
     }
     class PreparedTopicFilter {
         #filter;
@@ -14019,10 +14022,10 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         if (value == null) {
             return null;
         }
-        if (typeof (value[feature]) === "function") {
+        if (typeof value[feature] === "function") {
             return value;
         }
-        if (value.provider && typeof (value.provider[feature]) === "function") {
+        if (value.provider && typeof value.provider[feature] === "function") {
             return value.provider;
         }
         return null;
@@ -14070,9 +14073,13 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             const tx = (await copyOverrides(overrides, ["data"]));
             tx.to = await contract.getAddress();
             const iface = contract.interface;
-            const noValue = (getBigInt((tx.value || BN_0$1), "overrides.value") === BN_0$1);
-            const noData = ((tx.data || "0x") === "0x");
-            if (iface.fallback && !iface.fallback.payable && iface.receive && !noData && !noValue) {
+            const noValue = getBigInt(tx.value || BN_0$1, "overrides.value") === BN_0$1;
+            const noData = (tx.data || "0x") === "0x";
+            if (iface.fallback &&
+                !iface.fallback.payable &&
+                iface.receive &&
+                !noData &&
+                !noValue) {
                 assertArgument(false, "cannot send data to receive or send value to non-payable fallback", "overrides", overrides);
             }
             assertArgument(iface.fallback || noData, "cannot send data to receive-only contract", "overrides.data", tx.data);
@@ -14111,14 +14118,21 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             assert$1(canEstimate(runner), "contract runner does not support gas estimation", "UNSUPPORTED_OPERATION", { operation: "estimateGas" });
             return await runner.estimateGas(await populateTransaction(overrides));
         };
+        const resolveOffchainData = async function (overrides) {
+            const runner = getRunner(contract.runner, "resolveOffchainData");
+            assert$1(canResolveOffchaindata(runner), "contract runner does not support resolving offchain data", "UNSUPPORTED_OPERATION", { operation: "resolveOffchainData" });
+            return await runner.resolveOffchainData(await populateTransaction(overrides));
+        };
         const method = async (overrides) => {
             return await send(overrides);
         };
         defineProperties(method, {
             _contract: contract,
             estimateGas,
+            resolveOffchainData,
             populateTransaction,
-            send, staticCall
+            send,
+            staticCall,
         });
         return method;
     }
@@ -14126,7 +14140,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         const getFragment = function (...args) {
             const fragment = contract.interface.getFunction(key, args);
             assert$1(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                operation: "fragment"
+                operation: "fragment",
             });
             return fragment;
         };
@@ -14143,7 +14157,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             const resolvedArgs = await resolveArgs(contract.runner, fragment.inputs, args);
             return Object.assign({}, overrides, await resolveProperties({
                 to: contract.getAddress(),
-                data: contract.interface.encodeFunctionData(fragment, resolvedArgs)
+                data: contract.interface.encodeFunctionData(fragment, resolvedArgs),
             }));
         };
         const staticCall = async function (...args) {
@@ -14166,6 +14180,11 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             const runner = getRunner(contract.runner, "estimateGas");
             assert$1(canEstimate(runner), "contract runner does not support gas estimation", "UNSUPPORTED_OPERATION", { operation: "estimateGas" });
             return await runner.estimateGas(await populateTransaction(...args));
+        };
+        const resolveOffchainData = async function (...args) {
+            const runner = getRunner(contract.runner, "resolveOffchainData");
+            assert$1(canResolveOffchaindata(runner), "contract runner does not support resolving offchain data", "UNSUPPORTED_OPERATION", { operation: "resolveOffchainData" });
+            return await runner.resolveOffchainData(await populateTransaction(...args));
         };
         const staticCallResult = async function (...args) {
             const runner = getRunner(contract.runner, "call");
@@ -14193,11 +14212,15 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         };
         defineProperties(method, {
             name: contract.interface.getFunctionName(key),
-            _contract: contract, _key: key,
+            _contract: contract,
+            _key: key,
             getFragment,
             estimateGas,
+            resolveOffchainData,
             populateTransaction,
-            send, staticCall, staticCallResult,
+            send,
+            staticCall,
+            staticCallResult,
         });
         // Only works on non-ambiguous keys (refined fragment is always non-ambiguous)
         Object.defineProperty(method, "fragment", {
@@ -14206,10 +14229,10 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             get: () => {
                 const fragment = contract.interface.getFunction(key);
                 assert$1(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                    operation: "fragment"
+                    operation: "fragment",
                 });
                 return fragment;
-            }
+            },
         });
         return method;
     }
@@ -14217,7 +14240,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         const getFragment = function (...args) {
             const fragment = contract.interface.getEvent(key, args);
             assert$1(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                operation: "fragment"
+                operation: "fragment",
             });
             return fragment;
         };
@@ -14226,8 +14249,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         };
         defineProperties(method, {
             name: contract.interface.getEventName(key),
-            _contract: contract, _key: key,
-            getFragment
+            _contract: contract,
+            _key: key,
+            getFragment,
         });
         // Only works on non-ambiguous keys (refined fragment is always non-ambiguous)
         Object.defineProperty(method, "fragment", {
@@ -14236,10 +14260,10 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             get: () => {
                 const fragment = contract.interface.getEvent(key);
                 assert$1(fragment, "no matching fragment", "UNSUPPORTED_OPERATION", {
-                    operation: "fragment"
+                    operation: "fragment",
                 });
                 return fragment;
-            }
+            },
         });
         return method;
     }
@@ -14256,8 +14280,11 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         return internalValues.get(contract[internal]);
     }
     function isDeferred(value) {
-        return (value && typeof (value) === "object" && ("getTopicFilter" in value) &&
-            (typeof (value.getTopicFilter) === "function") && value.fragment);
+        return (value &&
+            typeof value === "object" &&
+            "getTopicFilter" in value &&
+            typeof value.getTopicFilter === "function" &&
+            value.fragment);
     }
     async function getSubInfo(contract, event) {
         let topics;
@@ -14287,7 +14314,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         else if (event === "*") {
             topics = [null];
         }
-        else if (typeof (event) === "string") {
+        else if (typeof event === "string") {
             if (isHexString(event, 32)) {
                 // Topic Hash
                 topics = [event];
@@ -14326,7 +14353,8 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             return t.toLowerCase();
         });
-        const tag = topics.map((t) => {
+        const tag = topics
+            .map((t) => {
             if (t == null) {
                 return "null";
             }
@@ -14334,7 +14362,8 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 return t.join("|");
             }
             return t;
-        }).join("&");
+        })
+            .join("&");
         return { fragment, tag, topics };
     }
     async function hasSub(contract, event) {
@@ -14349,7 +14378,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         const { addr, subs } = getInternal(contract);
         let sub = subs.get(tag);
         if (!sub) {
-            const address = (addr ? addr : contract);
+            const address = addr ? addr : contract;
             const filter = { address, topics };
             const listener = (log) => {
                 let foundFragment = fragment;
@@ -14362,7 +14391,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 // If fragment is null, we do not deconstruct the args to emit
                 if (foundFragment) {
                     const _foundFragment = foundFragment;
-                    const args = fragment ? contract.interface.decodeEventLog(fragment, log.data, log.topics) : [];
+                    const args = fragment
+                        ? contract.interface.decodeEventLog(fragment, log.data, log.topics)
+                        : [];
                     emit(contract, event, args, (listener) => {
                         return new ContractEventPayload(contract, listener, event, _foundFragment, log);
                     });
@@ -14416,7 +14447,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             catch (error) { }
             return !once;
         });
-        return (count > 0);
+        return count > 0;
     }
     async function emit(contract, event, args, payloadFunc) {
         try {
@@ -14467,7 +14498,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  of.
          */
         constructor(target, abi, runner, _deployTx) {
-            assertArgument(typeof (target) === "string" || isAddressable(target), "invalid value for Contract target", "target", target);
+            assertArgument(typeof target === "string" || isAddressable(target), "invalid value for Contract target", "target", target);
             if (runner == null) {
                 runner = null;
             }
@@ -14485,7 +14516,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             let subs = new Map();
             // Resolve the target as the address
-            if (typeof (target) === "string") {
+            if (typeof target === "string") {
                 if (isHexString(target)) {
                     addr = target;
                     addrPromise = Promise.resolve(target);
@@ -14494,7 +14525,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                     const resolver = getRunner(runner, "resolveName");
                     if (!canResolve(resolver)) {
                         throw makeError("contract runner does not support name resolution", "UNSUPPORTED_OPERATION", {
-                            operation: "resolveName"
+                            operation: "resolveName",
                         });
                     }
                     addrPromise = resolver.resolveName(target).then((addr) => {
@@ -14536,12 +14567,12 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                     if (passProperties.indexOf(prop) >= 0) {
                         return Reflect.has(target, prop);
                     }
-                    return Reflect.has(target, prop) || this.interface.hasEvent(String(prop));
-                }
+                    return (Reflect.has(target, prop) || this.interface.hasEvent(String(prop)));
+                },
             });
             defineProperties(this, { filters });
             defineProperties(this, {
-                fallback: ((iface.receive || iface.fallback) ? (buildWrappedFallback(this)) : null)
+                fallback: iface.receive || iface.fallback ? buildWrappedFallback(this) : null,
             });
             // Return a Proxy that will respond to functions
             return new Proxy(this, {
@@ -14561,7 +14592,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                         return Reflect.has(target, prop);
                     }
                     return target.interface.hasFunction(String(prop));
-                }
+                },
             });
         }
         /**
@@ -14581,7 +14612,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         /**
          *  Return the resolved address of this Contract.
          */
-        async getAddress() { return await getInternal(this).addrPromise; }
+        async getAddress() {
+            return await getInternal(this).addrPromise;
+        }
         /**
          *  Return the dedployed bytecode or null if no bytecode is found.
          */
@@ -14644,7 +14677,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  when using a Contract programatically.
          */
         getFunction(key) {
-            if (typeof (key) !== "string") {
+            if (typeof key !== "string") {
                 key = key.format();
             }
             const func = buildWrappedMethod(this, key);
@@ -14656,7 +14689,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  when using a Contract programatically.
          */
         getEvent(key) {
-            if (typeof (key) !== "string") {
+            if (typeof key !== "string") {
                 key = key.format();
             }
             return buildWrappedEvent(this, key);
@@ -14681,7 +14714,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 toBlock = "latest";
             }
             const { addr, addrPromise } = getInternal(this);
-            const address = (addr ? addr : (await addrPromise));
+            const address = addr ? addr : await addrPromise;
             const { fragment, topics } = await getSubInfo(this, event);
             const filter = { address, topics, fromBlock, toBlock };
             const provider = getProvider(this.runner);
@@ -14777,7 +14810,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 return this;
             }
             if (listener) {
-                const index = sub.listeners.map(({ listener }) => listener).indexOf(listener);
+                const index = sub.listeners
+                    .map(({ listener }) => listener)
+                    .indexOf(listener);
                 if (index >= 0) {
                     sub.listeners.splice(index, 1);
                 }
@@ -14833,7 +14868,6 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             return CustomContract;
         }
-        ;
         /**
          *  Create a new BaseContract with a specified Interface.
          */
@@ -16486,30 +16520,32 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
     const BN_2$1 = BigInt(2);
     const MAX_CCIP_REDIRECTS = 10;
     function isPromise$1(value) {
-        return (value && typeof (value.then) === "function");
+        return value && typeof value.then === "function";
     }
     function getTag(prefix, value) {
-        return prefix + ":" + JSON.stringify(value, (k, v) => {
-            if (v == null) {
-                return "null";
-            }
-            if (typeof (v) === "bigint") {
-                return `bigint:${v.toString()}`;
-            }
-            if (typeof (v) === "string") {
-                return v.toLowerCase();
-            }
-            // Sort object keys
-            if (typeof (v) === "object" && !Array.isArray(v)) {
-                const keys = Object.keys(v);
-                keys.sort();
-                return keys.reduce((accum, key) => {
-                    accum[key] = v[key];
-                    return accum;
-                }, {});
-            }
-            return v;
-        });
+        return (prefix +
+            ":" +
+            JSON.stringify(value, (k, v) => {
+                if (v == null) {
+                    return "null";
+                }
+                if (typeof v === "bigint") {
+                    return `bigint:${v.toString()}`;
+                }
+                if (typeof v === "string") {
+                    return v.toLowerCase();
+                }
+                // Sort object keys
+                if (typeof v === "object" && !Array.isArray(v)) {
+                    const keys = Object.keys(v);
+                    keys.sort();
+                    return keys.reduce((accum, key) => {
+                        accum[key] = v[key];
+                        return accum;
+                    }, {});
+                }
+                return v;
+            }));
     }
     /**
      *  An **UnmanagedSubscriber** is useful for events which do not require
@@ -16524,7 +16560,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         /**
          *  Create a new UnmanagedSubscriber with %%name%%.
          */
-        constructor(name) { defineProperties(this, { name }); }
+        constructor(name) {
+            defineProperties(this, { name });
+        }
         start() { }
         stop() { }
         pause(dropWhilePaused) { }
@@ -16534,7 +16572,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         return JSON.parse(JSON.stringify(value));
     }
     function concisify(items) {
-        items = Array.from((new Set(items)).values());
+        items = Array.from(new Set(items).values());
         items.sort();
         return items;
     }
@@ -16546,7 +16584,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         if (Array.isArray(_event)) {
             _event = { topics: _event };
         }
-        if (typeof (_event) === "string") {
+        if (typeof _event === "string") {
             switch (_event) {
                 case "block":
                 case "pending":
@@ -16564,12 +16602,16 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         if (_event.orphan) {
             const event = _event;
             // @TODO: Should lowercase and whatnot things here instead of copy...
-            return { type: "orphan", tag: getTag("orphan", event), filter: copy$1(event) };
+            return {
+                type: "orphan",
+                tag: getTag("orphan", event),
+                filter: copy$1(event),
+            };
         }
-        if ((_event.address || _event.topics)) {
+        if (_event.address || _event.topics) {
             const event = _event;
             const filter = {
-                topics: ((event.topics || []).map((t) => {
+                topics: (event.topics || []).map((t) => {
                     if (t == null) {
                         return null;
                     }
@@ -16577,7 +16619,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                         return concisify(t.map((t) => t.toLowerCase()));
                     }
                     return t.toLowerCase();
-                }))
+                }),
             };
             if (event.address) {
                 const addresses = [];
@@ -16607,9 +16649,11 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         }
         assertArgument(false, "unknown ProviderEvent", "event", _event);
     }
-    function getTime$1() { return (new Date()).getTime(); }
+    function getTime$1() {
+        return new Date().getTime();
+    }
     const defaultOptions$1 = {
-        cacheTimeout: 250
+        cacheTimeout: 250,
     };
     /**
      *  An **AbstractProvider** provides a base class for other sub-classes to
@@ -16647,7 +16691,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 const network = Network.from(_network);
                 this.#anyNetwork = false;
                 this.#networkPromise = Promise.resolve(network);
-                setTimeout(() => { this.emit("network", network, null); }, 0);
+                setTimeout(() => {
+                    this.emit("network", network, null);
+                }, 0);
             }
             else {
                 this.#anyNetwork = false;
@@ -16667,7 +16713,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  Returns ``this``, to allow an **AbstractProvider** to implement
          *  the [[ContractRunner]] interface.
          */
-        get provider() { return this; }
+        get provider() {
+            return this;
+        }
         /**
          *  Returns all the registered plug-ins.
          */
@@ -16688,14 +16736,18 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  Get a plugin by name.
          */
         getPlugin(name) {
-            return (this.#plugins.get(name)) || null;
+            return this.#plugins.get(name) || null;
         }
         /**
          *  Prevent any CCIP-read operation, regardless of whether requested
          *  in a [[call]] using ``enableCcipRead``.
          */
-        get disableCcipRead() { return this.#disableCcipRead; }
-        set disableCcipRead(value) { this.#disableCcipRead = !!value; }
+        get disableCcipRead() {
+            return this.#disableCcipRead;
+        }
+        set disableCcipRead(value) {
+            this.#disableCcipRead = !!value;
+        }
         // Shares multiple identical requests made during the same 250ms
         async #perform(req) {
             const timeout = this.#options.cacheTimeout;
@@ -16718,13 +16770,98 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             return await perform;
         }
         /**
+         * Checks whether a revert is a valid offchain lookup.
+         */
+        #isValidOffchainLookup(error, transaction, attempt, type = "read", blockTag) {
+            if (!this.disableCcipRead &&
+                (type == "read" || transaction.enableCcipRead) &&
+                isCallException(error) &&
+                error.data &&
+                attempt >= 0 &&
+                blockTag === "latest" &&
+                transaction.to != null &&
+                dataSlice(error.data, 0, 4) === "0x556f1830")
+                return true;
+            return false;
+        }
+        /**
+         * Handle a valid CCIP OffchainLookup
+         */
+        async #handleValidCCIP(error, transaction, attempt, action, txnSender) {
+            // Sufficient check
+            if (!transaction.to)
+                throw error;
+            const data = error.data;
+            const txSender = await resolveAddress(transaction.to, this);
+            // Parse the CCIP Read Arguments
+            let ccipArgs;
+            try {
+                ccipArgs = parseOffchainLookup(dataSlice(error.data, 4));
+            }
+            catch (error) {
+                assert$1(false, error.message, "OFFCHAIN_FAULT", {
+                    reason: "BAD_DATA",
+                    transaction,
+                    info: { data },
+                });
+            }
+            // Check the sender of the OffchainLookup matches the transaction
+            assert$1(ccipArgs.sender.toLowerCase() === txSender.toLowerCase(), "CCIP Read sender mismatch", "CALL_EXCEPTION", {
+                action,
+                data,
+                reason: "OffchainLookup",
+                transaction: transaction,
+                invocation: null,
+                revert: {
+                    signature: "OffchainLookup(address,string[],bytes,bytes4,bytes)",
+                    name: "OffchainLookup",
+                    args: ccipArgs.errorArgs,
+                },
+            });
+            const ccipResult = await this.ccipReadFetch(transaction, ccipArgs.calldata, ccipArgs.urls);
+            assert$1(ccipResult != null, "CCIP Read failed to fetch data", "OFFCHAIN_FAULT", {
+                reason: "FETCH_FAILED",
+                transaction,
+                info: { data: error.data, errorArgs: ccipArgs.errorArgs },
+            });
+            const tx = {
+                ...transaction,
+                to: txSender,
+                data: concat([
+                    ccipArgs.selector,
+                    encodeBytes([ccipResult, ccipArgs.extraData]),
+                ]),
+            };
+            console.log("Handling Valid CCIP... CCIP Result:", ccipResult, "New TX Data:", tx.data);
+            this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
+            try {
+                const result = await txnSender(tx, attempt + 1);
+                this.emit("debug", {
+                    action: "receiveCcipReadCallResult",
+                    transaction: Object.assign({}, tx),
+                    result,
+                });
+                return result;
+            }
+            catch (error) {
+                this.emit("debug", {
+                    action: "receiveCcipReadCallError",
+                    transaction: Object.assign({}, tx),
+                    error,
+                });
+                throw error;
+            }
+        }
+        /**
          *  Resolves to the data for executing the CCIP-read operations.
          */
         async ccipReadFetch(tx, calldata, urls) {
             if (this.disableCcipRead || urls.length === 0 || tx.to == null) {
                 return null;
             }
-            const sender = tx.to.toLowerCase();
+            const sender = typeof tx.to == "string"
+                ? tx.to.toLowerCase()
+                : (await resolveAddress(tx.to, this)).toLowerCase();
             const data = calldata.toLowerCase();
             const errorMessages = [];
             for (let i = 0; i < urls.length; i++) {
@@ -16741,29 +16878,49 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 if (url.indexOf("{data}") === -1) {
                     request.body = { data, sender };
                 }
-                this.emit("debug", { action: "sendCcipReadFetchRequest", request, index: i, urls });
+                this.emit("debug", {
+                    action: "sendCcipReadFetchRequest",
+                    request,
+                    index: i,
+                    urls,
+                });
                 let errorMessage = "unknown error";
                 const resp = await request.send();
                 try {
                     const result = resp.bodyJson;
                     if (result.data) {
-                        this.emit("debug", { action: "receiveCcipReadFetchResult", request, result });
+                        this.emit("debug", {
+                            action: "receiveCcipReadFetchResult",
+                            request,
+                            result,
+                        });
                         return result.data;
                     }
                     if (result.message) {
                         errorMessage = result.message;
                     }
-                    this.emit("debug", { action: "receiveCcipReadFetchError", request, result });
+                    this.emit("debug", {
+                        action: "receiveCcipReadFetchError",
+                        request,
+                        result,
+                    });
                 }
                 catch (error) { }
                 // 4xx indicates the result is not present; stop
-                assert$1(resp.statusCode < 400 || resp.statusCode >= 500, `response not found during CCIP fetch: ${errorMessage}`, "OFFCHAIN_FAULT", { reason: "404_MISSING_RESOURCE", transaction: tx, info: { url, errorMessage } });
+                assert$1(resp.statusCode < 400 || resp.statusCode >= 500, `response not found during CCIP fetch: ${errorMessage}`, "OFFCHAIN_FAULT", {
+                    reason: "404_MISSING_RESOURCE",
+                    transaction: tx,
+                    info: { url, errorMessage },
+                });
                 // 5xx indicates server issue; try the next url
                 errorMessages.push(errorMessage);
             }
-            assert$1(false, `error encountered during CCIP fetch: ${errorMessages.map((m) => JSON.stringify(m)).join(", ")}`, "OFFCHAIN_FAULT", {
+            assert$1(false, `error encountered during CCIP fetch: ${errorMessages
+            .map((m) => JSON.stringify(m))
+            .join(", ")}`, "OFFCHAIN_FAULT", {
                 reason: "500_SERVER_ERROR",
-                transaction: tx, info: { urls, errorMessages }
+                transaction: tx,
+                info: { urls, errorMessages },
             });
         }
         /**
@@ -16806,7 +16963,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          */
         _detectNetwork() {
             assert$1(false, "sub-classes must implement this", "UNSUPPORTED_OPERATION", {
-                operation: "_detectNetwork"
+                operation: "_detectNetwork",
             });
         }
         /**
@@ -16818,7 +16975,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async _perform(req) {
             assert$1(false, `unsupported method: ${req.method}`, "UNSUPPORTED_OPERATION", {
                 operation: req.method,
-                info: req
+                info: req,
             });
         }
         // State
@@ -16860,10 +17017,10 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 }
                 return toQuantity(blockTag);
             }
-            if (typeof (blockTag) === "bigint") {
+            if (typeof blockTag === "bigint") {
                 blockTag = getNumber(blockTag, "blockTag");
             }
-            if (typeof (blockTag) === "number") {
+            if (typeof blockTag === "number") {
                 if (blockTag >= 0) {
                     return toQuantity(blockTag);
                 }
@@ -16890,11 +17047,12 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 }
                 return t.toLowerCase();
             });
-            const blockHash = ("blockHash" in filter) ? filter.blockHash : undefined;
+            const blockHash = "blockHash" in filter ? filter.blockHash : undefined;
             const resolve = (_address, fromBlock, toBlock) => {
                 let address = undefined;
                 switch (_address.length) {
-                    case 0: break;
+                    case 0:
+                        break;
                     case 1:
                         address = _address[0];
                         break;
@@ -16945,9 +17103,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             if ("toBlock" in filter) {
                 toBlock = this._getBlockTag(filter.toBlock);
             }
-            if (address.filter((a) => (typeof (a) !== "string")).length ||
-                (fromBlock != null && typeof (fromBlock) !== "string") ||
-                (toBlock != null && typeof (toBlock) !== "string")) {
+            if (address.filter((a) => typeof a !== "string").length ||
+                (fromBlock != null && typeof fromBlock !== "string") ||
+                (toBlock != null && typeof toBlock !== "string")) {
                 return Promise.all([Promise.all(address), fromBlock, toBlock]).then((result) => {
                     return resolve(result[0], result[1], result[2]);
                 });
@@ -16968,7 +17126,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 }
                 const addr = resolveAddress(request[key]);
                 if (isPromise$1(addr)) {
-                    promises.push((async function () { request[key] = await addr; })());
+                    promises.push((async function () {
+                        request[key] = await addr;
+                    })());
                 }
                 else {
                     request[key] = addr;
@@ -16977,7 +17137,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             if (request.blockTag != null) {
                 const blockTag = this._getBlockTag(request.blockTag);
                 if (isPromise$1(blockTag)) {
-                    promises.push((async function () { request.blockTag = await blockTag; })());
+                    promises.push((async function () {
+                        request.blockTag = await blockTag;
+                    })());
                 }
                 else {
                     request.blockTag = blockTag;
@@ -17011,7 +17173,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             const networkPromise = this.#networkPromise;
             const [expected, actual] = await Promise.all([
                 networkPromise,
-                this._detectNetwork() // The actual connected network
+                this._detectNetwork(), // The actual connected network
             ]);
             if (expected.chainId !== actual.chainId) {
                 if (this.#anyNetwork) {
@@ -17025,7 +17187,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 else {
                     // Otherwise, we do not allow changes to the underlying network
                     assert$1(false, `network changed: ${expected.chainId} => ${actual.chainId} `, "NETWORK_ERROR", {
-                        event: "changed"
+                        event: "changed",
                     });
                 }
             }
@@ -17034,43 +17196,91 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async getFeeData() {
             const { block, gasPrice } = await resolveProperties({
                 block: this.getBlock("latest"),
-                gasPrice: ((async () => {
+                gasPrice: (async () => {
                     try {
                         const gasPrice = await this.#perform({ method: "getGasPrice" });
                         return getBigInt(gasPrice, "%response");
                     }
                     catch (error) { }
                     return null;
-                })())
+                })(),
             });
             let maxFeePerGas = null, maxPriorityFeePerGas = null;
             if (block && block.baseFeePerGas) {
                 // We may want to compute this more accurately in the future,
                 // using the formula "check if the base fee is correct".
                 // See: https://eips.ethereum.org/EIPS/eip-1559
+                // @ts-ignore
                 maxPriorityFeePerGas = BigInt("1000000000");
                 // Allow a network to override their maximum priority fee per gas
                 //const priorityFeePlugin = (await this.getNetwork()).getPlugin<MaxPriorityFeePlugin>("org.ethers.plugins.max-priority-fee");
                 //if (priorityFeePlugin) {
                 //    maxPriorityFeePerGas = await priorityFeePlugin.getPriorityFee(this);
                 //}
-                maxFeePerGas = (block.baseFeePerGas * BN_2$1) + maxPriorityFeePerGas;
+                // @ts-ignore
+                maxFeePerGas = block.baseFeePerGas * BN_2$1 + maxPriorityFeePerGas;
             }
             return new FeeData(gasPrice, maxFeePerGas, maxPriorityFeePerGas);
         }
-        async estimateGas(_tx) {
+        async estimateGas(_tx, attempt = 0) {
+            assert$1(attempt < MAX_CCIP_REDIRECTS, "CCIP read exceeded maximum redirections", "OFFCHAIN_FAULT", {
+                reason: "TOO_MANY_REDIRECTS",
+                transaction: Object.assign({}, _tx, {
+                    blockTag: _tx.blockTag,
+                    enableCcipRead: true,
+                }),
+            });
             let tx = this._getTransactionRequest(_tx);
-            if (isPromise$1(tx)) {
-                tx = await tx;
+            try {
+                if (isPromise$1(tx)) {
+                    tx = await tx;
+                }
+                return getBigInt(await this.#perform({
+                    method: "estimateGas",
+                    transaction: tx,
+                }), "%response");
             }
-            return getBigInt(await this.#perform({
-                method: "estimateGas", transaction: tx
-            }), "%response");
+            catch (error) {
+                // CCIP Read OffchainLookup
+                if (!this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag))
+                    throw error;
+                return await this.#handleValidCCIP(error, _tx, attempt, "estimateGas", async (newTxn, newAttempt) => await this.estimateGas(newTxn, newAttempt));
+            }
+        }
+        async resolveOffchainData(_tx, attempt = 0) {
+            console.log("Resolving Offchain Data...");
+            assert$1(attempt < MAX_CCIP_REDIRECTS, "CCIP read exceeded maximum redirections", "OFFCHAIN_FAULT", {
+                reason: "TOO_MANY_REDIRECTS",
+                transaction: Object.assign({}, _tx, {
+                    blockTag: _tx.blockTag,
+                    enableCcipRead: true,
+                }),
+            });
+            let tx = this._getTransactionRequest(_tx);
+            try {
+                if (isPromise$1(tx))
+                    tx = await tx;
+                console.log("Gonna resolve offchain tx with data:", tx.data);
+                getBigInt(await this.#perform({
+                    method: "estimateGas",
+                    transaction: tx,
+                }), "%response");
+                // Gas estimation went through w/ current TX data === PASS
+                return hexlify(tx.data);
+            }
+            catch (error) {
+                // CCIP Read OffchainLookup
+                if (!this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)) {
+                    console.log("IS not valid offchain - Throwing...");
+                    throw error;
+                }
+                return await this.#handleValidCCIP(error, _tx, attempt, "estimateGas", async (newTxn, newAttempt) => await this.resolveOffchainData(newTxn, newAttempt));
+            }
         }
         async #call(tx, blockTag, attempt) {
             assert$1(attempt < MAX_CCIP_REDIRECTS, "CCIP read exceeded maximum redirections", "OFFCHAIN_FAULT", {
                 reason: "TOO_MANY_REDIRECTS",
-                transaction: Object.assign({}, tx, { blockTag, enableCcipRead: true })
+                transaction: Object.assign({}, tx, { blockTag, enableCcipRead: true }),
             });
             // This came in as a PerformActionTransaction, so to/from are safe; we can cast
             const transaction = copyRequest(tx);
@@ -17079,65 +17289,22 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             catch (error) {
                 // CCIP Read OffchainLookup
-                if (!this.disableCcipRead && isCallException(error) && error.data && attempt >= 0 && blockTag === "latest" && transaction.to != null && dataSlice(error.data, 0, 4) === "0x556f1830") {
-                    const data = error.data;
-                    const txSender = await resolveAddress(transaction.to, this);
-                    // Parse the CCIP Read Arguments
-                    let ccipArgs;
-                    try {
-                        ccipArgs = parseOffchainLookup(dataSlice(error.data, 4));
-                    }
-                    catch (error) {
-                        assert$1(false, error.message, "OFFCHAIN_FAULT", {
-                            reason: "BAD_DATA", transaction, info: { data }
-                        });
-                    }
-                    // Check the sender of the OffchainLookup matches the transaction
-                    assert$1(ccipArgs.sender.toLowerCase() === txSender.toLowerCase(), "CCIP Read sender mismatch", "CALL_EXCEPTION", {
-                        action: "call",
-                        data,
-                        reason: "OffchainLookup",
-                        transaction: transaction,
-                        invocation: null,
-                        revert: {
-                            signature: "OffchainLookup(address,string[],bytes,bytes4,bytes)",
-                            name: "OffchainLookup",
-                            args: ccipArgs.errorArgs
-                        }
-                    });
-                    const ccipResult = await this.ccipReadFetch(transaction, ccipArgs.calldata, ccipArgs.urls);
-                    assert$1(ccipResult != null, "CCIP Read failed to fetch data", "OFFCHAIN_FAULT", {
-                        reason: "FETCH_FAILED", transaction, info: { data: error.data, errorArgs: ccipArgs.errorArgs }
-                    });
-                    const tx = {
-                        to: txSender,
-                        data: concat([ccipArgs.selector, encodeBytes([ccipResult, ccipArgs.extraData])])
-                    };
-                    this.emit("debug", { action: "sendCcipReadCall", transaction: tx });
-                    try {
-                        const result = await this.#call(tx, blockTag, attempt + 1);
-                        this.emit("debug", { action: "receiveCcipReadCallResult", transaction: Object.assign({}, tx), result });
-                        return result;
-                    }
-                    catch (error) {
-                        this.emit("debug", { action: "receiveCcipReadCallError", transaction: Object.assign({}, tx), error });
-                        throw error;
-                    }
-                }
-                throw error;
+                if (!this.#isValidOffchainLookup(error, transaction, attempt, "read", blockTag))
+                    throw error;
+                return await this.#handleValidCCIP(error, transaction, attempt, "call", async (newTxn, newAttempt) => await this.#call(newTxn, blockTag, newAttempt));
             }
         }
         async #checkNetwork(promise) {
             const { value } = await resolveProperties({
                 network: this.getNetwork(),
-                value: promise
+                value: promise,
             });
             return value;
         }
         async call(_tx) {
             const { tx, blockTag } = await resolveProperties({
                 tx: this._getTransactionRequest(_tx),
-                blockTag: this._getBlockTag(_tx.blockTag)
+                blockTag: this._getBlockTag(_tx.blockTag),
             });
             return await this.#checkNetwork(this.#call(tx, blockTag, _tx.enableCcipRead ? 0 : -1));
         }
@@ -17145,7 +17312,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async #getAccountValue(request, _address, _blockTag) {
             let address = this._getAddress(_address);
             let blockTag = this._getBlockTag(_blockTag);
-            if (typeof (address) !== "string" || typeof (blockTag) !== "string") {
+            if (typeof address !== "string" || typeof blockTag !== "string") {
                 [address, blockTag] = await Promise.all([address, blockTag]);
             }
             return await this.#checkNetwork(this.#perform(Object.assign(request, { address, blockTag })));
@@ -17169,9 +17336,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 blockNumber: this.getBlockNumber(),
                 hash: this._perform({
                     method: "broadcastTransaction",
-                    signedTransaction: signedTx
+                    signedTransaction: signedTx,
                 }),
-                network: this.getNetwork()
+                network: this.getNetwork(),
             });
             const tx = Transaction.from(signedTx);
             if (tx.hash !== hash) {
@@ -17183,22 +17350,26 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             // @TODO: Add CustomBlockPlugin check
             if (isHexString(block, 32)) {
                 return await this.#perform({
-                    method: "getBlock", blockHash: block, includeTransactions
+                    method: "getBlock",
+                    blockHash: block,
+                    includeTransactions,
                 });
             }
             let blockTag = this._getBlockTag(block);
-            if (typeof (blockTag) !== "string") {
+            if (typeof blockTag !== "string") {
                 blockTag = await blockTag;
             }
             return await this.#perform({
-                method: "getBlock", blockTag, includeTransactions
+                method: "getBlock",
+                blockTag,
+                includeTransactions,
             });
         }
         // Queries
         async getBlock(block, prefetchTxs) {
             const { network, params } = await resolveProperties({
                 network: this.getNetwork(),
-                params: this.#getBlock(block, !!prefetchTxs)
+                params: this.#getBlock(block, !!prefetchTxs),
             });
             if (params == null) {
                 return null;
@@ -17208,7 +17379,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async getTransaction(hash) {
             const { network, params } = await resolveProperties({
                 network: this.getNetwork(),
-                params: this.#perform({ method: "getTransaction", hash })
+                params: this.#perform({ method: "getTransaction", hash }),
             });
             if (params == null) {
                 return null;
@@ -17218,7 +17389,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async getTransactionReceipt(hash) {
             const { network, params } = await resolveProperties({
                 network: this.getNetwork(),
-                params: this.#perform({ method: "getTransactionReceipt", hash })
+                params: this.#perform({ method: "getTransactionReceipt", hash }),
             });
             if (params == null) {
                 return null;
@@ -17237,7 +17408,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         async getTransactionResult(hash) {
             const { result } = await resolveProperties({
                 network: this.getNetwork(),
-                result: this.#perform({ method: "getTransactionResult", hash })
+                result: this.#perform({ method: "getTransactionResult", hash }),
             });
             if (result == null) {
                 return null;
@@ -17252,14 +17423,14 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             const { network, params } = await resolveProperties({
                 network: this.getNetwork(),
-                params: this.#perform({ method: "getLogs", filter })
+                params: this.#perform({ method: "getLogs", filter }),
             });
             return params.map((p) => this._wrapLog(p, network));
         }
         // ENS
         _getProvider(chainId) {
             assert$1(false, "provider cannot connect to target network", "UNSUPPORTED_OPERATION", {
-                operation: "_getProvider()"
+                operation: "_getProvider()",
             });
         }
         async getResolver(name) {
@@ -17284,16 +17455,12 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             const node = namehash(address.substring(2).toLowerCase() + ".addr.reverse");
             try {
                 const ensAddr = await EnsResolver.getEnsAddress(this);
-                const ensContract = new Contract(ensAddr, [
-                    "function resolver(bytes32) view returns (address)"
-                ], this);
+                const ensContract = new Contract(ensAddr, ["function resolver(bytes32) view returns (address)"], this);
                 const resolver = await ensContract.resolver(node);
                 if (resolver == null || resolver === ZeroAddress) {
                     return null;
                 }
-                const resolverContract = new Contract(resolver, [
-                    "function name(bytes32) view returns (string)"
-                ], this);
+                const resolverContract = new Contract(resolver, ["function name(bytes32) view returns (string)"], this);
                 const name = await resolverContract.name(node);
                 // Failed forward resolution
                 const check = await this.resolveName(name);
@@ -17316,13 +17483,13 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             return null;
         }
         async waitForTransaction(hash, _confirms, timeout) {
-            const confirms = (_confirms != null) ? _confirms : 1;
+            const confirms = _confirms != null ? _confirms : 1;
             if (confirms === 0) {
                 return this.getTransactionReceipt(hash);
             }
             return new Promise(async (resolve, reject) => {
                 let timer = null;
-                const listener = (async (blockNumber) => {
+                const listener = async (blockNumber) => {
                     try {
                         const receipt = await this.getTransactionReceipt(hash);
                         if (receipt != null) {
@@ -17341,7 +17508,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                         console.log("EEE", error);
                     }
                     this.once("block", listener);
-                });
+                };
                 if (timeout != null) {
                     timer = setTimeout(() => {
                         if (timer == null) {
@@ -17357,7 +17524,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         }
         async waitForBlock(blockTag) {
             assert$1(false, "not implemented yet", "NOT_IMPLEMENTED", {
-                operation: "waitForBlock"
+                operation: "waitForBlock",
             });
         }
         /**
@@ -17458,7 +17625,10 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             let sub = await getSubscription(event, this);
             // This is a log that is removing an existing log; we actually want
             // to emit an orphan event for the removed log
-            if (sub.type === "event" && emitArgs && emitArgs.length > 0 && emitArgs[0].removed === true) {
+            if (sub.type === "event" &&
+                emitArgs &&
+                emitArgs.length > 0 &&
+                emitArgs[0].removed === true) {
                 sub = await getSubscription({ orphan: "drop-log", log: emitArgs[0] }, this);
             }
             return this.#subs.get(sub.tag) || null;
@@ -17472,7 +17642,14 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 const subscriber = this._getSubscriber(subscription);
                 const addressableMap = new WeakMap();
                 const nameMap = new Map();
-                sub = { subscriber, tag, addressableMap, nameMap, started: false, listeners: [] };
+                sub = {
+                    subscriber,
+                    tag,
+                    addressableMap,
+                    nameMap,
+                    started: false,
+                    listeners: [],
+                };
                 this.#subs.set(tag, sub);
             }
             return sub;
@@ -17510,7 +17687,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
             }
             const count = sub.listeners.length;
             sub.listeners = sub.listeners.filter(({ listener, once }) => {
-                const payload = new EventPayload(this, (once ? null : listener), event);
+                const payload = new EventPayload(this, once ? null : listener, event);
                 try {
                     listener.call(this, ...args, payload);
                 }
@@ -17523,7 +17700,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 }
                 this.#subs.delete(sub.tag);
             }
-            return (count > 0);
+            return count > 0;
         }
         async listenerCount(event) {
             if (event) {
@@ -17559,7 +17736,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                 return this;
             }
             if (listener) {
-                const index = sub.listeners.map(({ listener }) => listener).indexOf(listener);
+                const index = sub.listeners
+                    .map(({ listener }) => listener)
+                    .indexOf(listener);
                 if (index >= 0) {
                     sub.listeners.splice(index, 1);
                 }
@@ -17634,7 +17813,9 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
          *  which will buffer any events that occur while paused until the
          *  provider is unpaused.
          */
-        get paused() { return (this.#pausedState != null); }
+        get paused() {
+            return this.#pausedState != null;
+        }
         set paused(pause) {
             if (!!pause === this.paused) {
                 return;
@@ -17658,7 +17839,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
                     return;
                 }
                 assert$1(false, "cannot change pause type; resume first", "UNSUPPORTED_OPERATION", {
-                    operation: "pause"
+                    operation: "pause",
                 });
             }
             this._forEachSubscriber((s) => s.pause(dropWhilePaused));
@@ -17726,7 +17907,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         return padded;
     }
     function bytesPad(value) {
-        if ((value.length % 32) === 0) {
+        if (value.length % 32 === 0) {
             return value;
         }
         const result = new Uint8Array(Math.ceil(value.length / 32) * 32);
@@ -17757,14 +17938,19 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
     const zeros = "0x0000000000000000000000000000000000000000000000000000000000000000";
     function parseOffchainLookup(data) {
         const result = {
-            sender: "", urls: [], calldata: "", selector: "", extraData: "", errorArgs: []
+            sender: "",
+            urls: [],
+            calldata: "",
+            selector: "",
+            extraData: "",
+            errorArgs: [],
         };
         assert$1(dataLength(data) >= 5 * 32, "insufficient OffchainLookup data", "OFFCHAIN_FAULT", {
-            reason: "insufficient OffchainLookup data"
+            reason: "insufficient OffchainLookup data",
         });
         const sender = dataSlice(data, 0, 32);
         assert$1(dataSlice(sender, 0, 12) === dataSlice(zeros, 0, 12), "corrupt OffchainLookup sender", "OFFCHAIN_FAULT", {
-            reason: "corrupt OffchainLookup sender"
+            reason: "corrupt OffchainLookup sender",
         });
         result.sender = dataSlice(sender, 12);
         // Read the URLs from the response
@@ -17784,7 +17970,7 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         }
         catch (error) {
             assert$1(false, "corrupt OffchainLookup urls", "OFFCHAIN_FAULT", {
-                reason: "corrupt OffchainLookup urls"
+                reason: "corrupt OffchainLookup urls",
             });
         }
         // Get the CCIP calldata to forward
@@ -17797,12 +17983,12 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         }
         catch (error) {
             assert$1(false, "corrupt OffchainLookup calldata", "OFFCHAIN_FAULT", {
-                reason: "corrupt OffchainLookup calldata"
+                reason: "corrupt OffchainLookup calldata",
             });
         }
         // Get the callbackSelector (bytes4)
         assert$1(dataSlice(data, 100, 128) === dataSlice(zeros, 0, 28), "corrupt OffchainLookup callbaackSelector", "OFFCHAIN_FAULT", {
-            reason: "corrupt OffchainLookup callbaackSelector"
+            reason: "corrupt OffchainLookup callbaackSelector",
         });
         result.selector = dataSlice(data, 96, 100);
         // Get the extra data to send back to the contract as context
@@ -17815,10 +18001,12 @@ const __$G = (typeof globalThis !== 'undefined' ? globalThis: typeof window !== 
         }
         catch (error) {
             assert$1(false, "corrupt OffchainLookup extraData", "OFFCHAIN_FAULT", {
-                reason: "corrupt OffchainLookup extraData"
+                reason: "corrupt OffchainLookup extraData",
             });
         }
-        result.errorArgs = "sender,urls,calldata,selector,extraData".split(/,/).map((k) => result[k]);
+        result.errorArgs = "sender,urls,calldata,selector,extraData"
+            .split(/,/)
+            .map((k) => result[k]);
         return result;
     }
 
