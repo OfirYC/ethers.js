@@ -1359,7 +1359,13 @@ export class AbstractProvider implements Provider {
     } catch (error: any) {
       // CCIP Read OffchainLookup
       if (
-        !this.#isValidOffchainLookup(error, _tx, attempt, "write", _tx.blockTag)
+        !this.#isValidOffchainLookup(
+          error,
+          _tx,
+          attempt,
+          "write",
+          _tx.blockTag || "latest"
+        )
       )
         throw error;
 
